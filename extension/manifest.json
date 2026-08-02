@@ -11,5 +11,5 @@
   "icons": {
     "128": "icon.png"
   },
-  "host_permissions": ["https://youtube-rag-chatbot-y27o.onrender.com/*"]
+  "host_permissions": ["http://127.0.0.1:8000/*"]
 }
