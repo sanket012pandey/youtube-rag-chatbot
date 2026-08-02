@@ -1,0 +1,13 @@
+langchain-core
+langchain-classic
+langchain-groq
+langchain-huggingface
+langchain-chroma
+youtube-transcript-api
+python-dotenv
+sentence-transformers
+fastapi
+uvicorn
+pydantic
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch

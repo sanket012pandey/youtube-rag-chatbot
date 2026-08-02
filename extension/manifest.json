@@ -1,0 +1,15 @@
+{
+  "manifest_version": 3,
+  "name": "AskTube - YouTube RAG Chatbot",
+  "version": "1.0",
+  "description": "Ask questions about any YouTube video using RAG",
+  "permissions": ["activeTab", "tabs"],
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": "icon.png"
+  },
+  "icons": {
+    "128": "icon.png"
+  },
+  "host_permissions": ["http://127.0.0.1:8000/*"]
+}
