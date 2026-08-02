@@ -1,4 +1,4 @@
-const API_URL = "https://youtube-rag-chatbot.onrender.com";
+const API_URL = "https://youtube-rag-chatbot-y27o.onrender.com/ask";
 
 let currentVideoId = null;
 
