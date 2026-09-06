@@ -6,6 +6,7 @@ const statusEl = document.getElementById("video-status");
 const chatEl = document.getElementById("chat");
 const questionEl = document.getElementById("question");
 const askBtn = document.getElementById("ask-btn");
+const emptyHint = document.getElementById("empty-hint");
 
 // Step 1: Detect the current tab's YouTube video ID
 chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
@@ -14,19 +15,40 @@ chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
 
   if (match) {
     currentVideoId = match[1];
-    statusEl.textContent = `Connected to video: ${currentVideoId}`;
+    statusEl.textContent = `Connected · ${currentVideoId}`;
+    statusEl.classList.add("connected");
   } else {
     statusEl.textContent = "Not a YouTube video page. Open a video first.";
     statusEl.classList.add("error");
     askBtn.disabled = true;
+    questionEl.disabled = true;
   }
 });
 
 // Step 2: Add a message bubble to the chat area
 function addMessage(text, type) {
+  if (emptyHint && emptyHint.parentNode) emptyHint.remove();
+
   const div = document.createElement("div");
   div.className = `msg ${type}`;
-  div.textContent = text;
+
+  if (type === "bot") {
+    // Turn [4:07]-style timestamps into styled chips (safely, no innerHTML on raw text)
+    const parts = text.split(/(\[\d{1,2}:\d{2}(?::\d{2})?\])/g);
+    parts.forEach((part) => {
+      if (/^\[\d{1,2}:\d{2}(?::\d{2})?\]$/.test(part)) {
+        const chip = document.createElement("span");
+        chip.className = "ts";
+        chip.textContent = part.replace(/[\[\]]/g, "");
+        div.appendChild(chip);
+      } else if (part) {
+        div.appendChild(document.createTextNode(part));
+      }
+    });
+  } else {
+    div.textContent = text;
+  }
+
   chatEl.appendChild(div);
   chatEl.scrollTop = chatEl.scrollHeight;
   return div;
@@ -41,7 +63,7 @@ async function askQuestion() {
   questionEl.value = "";
   askBtn.disabled = true;
 
-  const loadingMsg = addMessage("Thinking...", "loading");
+  const loadingMsg = addMessage("Thinking", "loading");
 
   try {
     const response = await fetch(API_URL, {
@@ -49,8 +71,8 @@ async function askQuestion() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         video_id: currentVideoId,
-        question: question
-      })
+        question: question,
+      }),
     });
 
     loadingMsg.remove();
@@ -64,9 +86,13 @@ async function askQuestion() {
     }
   } catch (e) {
     loadingMsg.remove();
-    addMessage("Could not reach the API. Is your Docker container running on port 8000?", "bot");
+    addMessage(
+      "Could not reach the API. Is your Docker container running on port 8000?",
+      "bot"
+    );
   } finally {
     askBtn.disabled = false;
+    questionEl.focus();
   }
 }
 
