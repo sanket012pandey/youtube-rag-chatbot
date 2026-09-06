@@ -5,10 +5,10 @@ Ask questions about any YouTube video and get grounded, cited answers — powere
 ## How it works
 
 1. **Transcript ingestion** — fetches the video's transcript via the YouTube Transcript API
-2. **Chunking** — splits the transcript into overlapping chunks (1000 chars, 200 overlap) using `RecursiveCharacterTextSplitter`
+2. **Semantic chunking** — splits the transcript by *meaning* rather than character count using LangChain's `SemanticChunker` (percentile breakpoints, `breakpoint_threshold_amount=90`, `min_chunk_size=300`). Adjacent sentences are embedded and compared; a new chunk starts wherever the semantic distance spikes, so each chunk maps to a coherent topic segment of the video
 3. **Embedding** — encodes chunks with `sentence-transformers/all-MiniLM-L6-v2` and stores them in a per-video Chroma collection
 4. **Retrieval** — uses **MMR (Maximal Marginal Relevance)** instead of plain similarity search, since spoken transcripts are repetitive; MMR retrieves relevant *and* diverse chunks (`k=4, lambda_mult=0.65`)
-5. **Generation** — a Groq-hosted LLM (`openai/gpt-oss-120b`) answers strictly from retrieved context, with an explicit fallback ("I don't know based on the provided transcript") to reduce hallucination
+5. **Generation** — a Groq-hosted LLM (`openai/gpt-oss-120b`) answers strictly from retrieved context, citing the timestamp of the source chunk, with an explicit fallback ("I don't know based on the provided transcript") to reduce hallucination
 6. **Delivery** — served via a FastAPI backend, containerized with Docker, and consumed by a Chrome extension frontend
 
 ## Architecture
@@ -19,14 +19,24 @@ YouTube video → Chrome Extension (popup.js)
                  FastAPI (main.py)
                         ↓
               rag_pipeline.py
-   ┌────────────────────────────────────┐
-   │ Transcript fetch → Chunk → Embed    │
-   │ → Chroma (per-video) → MMR Retrieve │
-   │ → Prompt → Groq LLM → Answer        │
-   └────────────────────────────────────┘
+   ┌─────────────────────────────────────────┐
+   │ Transcript fetch → Semantic chunking     │
+   │ → Embed → Chroma (per-video)             │
+   │ → MMR Retrieve → Prompt → Groq LLM       │
+   │ → Timestamped answer                     │
+   └─────────────────────────────────────────┘
                         ↓
               schema.py (Pydantic I/O validation)
 ```
+
+## Chrome Extension
+
+A Manifest V3 extension with a dark, YouTube-native popup UI:
+
+- **Auto-detects** the video ID from the active tab
+- **Timestamp chips** — citations like `[4:07]` in answers are rendered as styled, scannable chips
+- **Player-style status bar** showing the connected video, with clear error states when not on a video page
+- **Polished UX** — empty-state hint, animated loading indicator, reduced-motion support, and full icon set (16/48/128 px)
 
 ## Evaluation
 
@@ -45,6 +55,7 @@ Measured using **RAGAS** with LLM-as-a-judge (Groq-hosted, temperature=0, separa
 
 - **Orchestration:** LangChain (LCEL / Runnable chains)
 - **LLM:** Groq (`openai/gpt-oss-120b`)
+- **Chunking:** LangChain Experimental `SemanticChunker` (embedding-based breakpoints)
 - **Embeddings:** HuggingFace `sentence-transformers/all-MiniLM-L6-v2`
 - **Vector Store:** ChromaDB (per-video collections)
 - **Evaluation:** RAGAS (faithfulness, answer relevancy)
@@ -57,18 +68,18 @@ Measured using **RAGAS** with LLM-as-a-judge (Groq-hosted, temperature=0, separa
 ```
 Youtube_chatbot/
 ├── main.py              # FastAPI app and /ask endpoint
-├── rag_pipeline.py       # Reusable RAG chain builder (per video_id)
-├── schema.py             # Pydantic input/output schemas
-├── evaluate.py            # RAGAS evaluation script
+├── rag_pipeline.py      # Reusable RAG chain builder (per video_id)
+├── schema.py            # Pydantic input/output schemas
+├── evaluate.py          # RAGAS evaluation script
 ├── Dockerfile
-├── requirements.txt        # Production dependencies
-├── requirements_dev.txt     # Eval-only dependencies (kept out of the Docker image)
+├── requirements.txt     # Production dependencies
+├── requirements_dev.txt # Eval-only dependencies (kept out of the Docker image)
 ├── .dockerignore
 └── extension/
     ├── manifest.json
     ├── popup.html
     ├── popup.js
-    └── icon.png
+    ├── icon48.png
 ```
 
 ## Setup
@@ -113,6 +124,7 @@ python evaluate.py
 
 ## Design Decisions
 
+- **Semantic chunking over fixed-size splitting** — a fixed 1000-char window can cut a spoken explanation mid-thought; `SemanticChunker` places boundaries where the topic actually shifts, adapting chunk count to video length automatically. Percentile mode (`threshold=90`) balances granularity and context, and `min_chunk_size=300` prevents fragmentary chunks from filler speech.
 - **MMR over plain similarity search** — spoken transcripts repeat ideas; MMR reduces redundant retrieved chunks and improves context diversity.
 - **Per-video Chroma collections** — keeps retrieval scoped to a single video instead of mixing content across videos.
 - **Separate `requirements.txt` / `requirements_dev.txt`** — keeps evaluation tooling (RAGAS, datasets) out of the production Docker image.
