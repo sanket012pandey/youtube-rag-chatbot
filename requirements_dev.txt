@@ -1,0 +1,5 @@
+# Dev-only dependencies for running evaluate.py (RAGAS evals)
+# NOT needed for the deployed API — install these separately in your local venv only
+ragas==0.3.9
+datasets
+GitPython
