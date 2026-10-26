@@ -67,6 +67,7 @@ def build_chain_for_video(video_id: str):
         collection_name='transcripts123'
     )
 
+    #ensure to avoid duplicacy for same transcript twice so that db never gets full or slow 
     if vector_db._collection.count() == 0:
         vector_db.add_documents(chunks)
 
